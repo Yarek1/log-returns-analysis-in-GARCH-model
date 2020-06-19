@@ -60,7 +60,7 @@ qqnorm(rt2,pch=16,col="purple",xlab="gaussian quantiles",ylab="empirical quantil
 qqline(rt2,col="red")
 
 ## Descriptive statistics
-
+library(quantmod)
 library(tseries)
 library(e1071)
 
@@ -162,3 +162,88 @@ Box.test(rt2^2,lag=10,type = "Ljung-Box",fitdf=0)
 #For each tests p-value is large, so we can say that the residuals are independent
 
 # End of the first part
+
+
+library(fGarch)
+
+# Simulation trajectories of the example Garch model with fGarch library
+
+n_ <- 150
+
+garch<- garchSpec(model = list(alpha = 0.25, beta = 0.48, omega = 1e-4),cond.dist = "norm")  ## gaussian noise
+
+gedgarch <- garchSpec(model = list(alpha = 0.25, beta = 0.48, omega = 1e-4,shape = 1.2),cond.dist = "ged")  ## GED(alfa=1,3)
+
+
+## b) symulacja trajektorii
+
+garchrt <- garchSim(spec = garch, n = n_, n.start = 150, extended = FALSE)  ## trajectory with white noise
+
+garchrtgvec <- garchSim(spec = garch, n = n_, n.start = 150, extended = TRUE) 
+
+
+gedgarchrtn <- garchSim(spec = gedgarch, n = n_, n.start = 150, extended = FALSE)  ## trajektoria szeregu z szumem GED
+
+gedgarchrtngvec <- garchSim(spec = gedgarch, n = n_, n.start = 150, extended = TRUE)  ## szereg, sigma_t i innowacje z szumem GED
+
+
+# c) First visualization
+
+par(mar = c(5,5,6,5))  
+
+plot(1:n_,garchrt,type="l",col="blue",xlab="t",ylab="GARCH(1,1) gaussian")
+
+par(new=T)
+
+plot(gedgarchrtn,type="l",col="red",xlab=NULL,ylab=NULL,axes=FALSE,las=1)
+
+axis(side = 4)
+
+mtext(side = 4, line = 2, 'GARCH(1,1) not-gaussian (GED)')
+
+mtext(side = 3, line = 2, "Trajectories of GARCH(1,1) model with lenght 200")
+
+
+# d) Second visualization: Garch points: {r(t)}, volatility {sigma(t)}, noise {epsilon(t)}
+
+par(mfrow=c(3,1))
+
+plot(1:n_,gedgarchrtngvec$garch,type="h",col="blue",lwd=2,xlab="t",ylab="r(t)",main="Trajectories of GARCH model",las=1)
+abline(h=0,col="gray",lty=3)
+
+plot(1:n_,gedgarchrtngvec$sigma,type="l",col="blue",lwd=2,xlab="t",ylab="sigma(t)",main="GARCH Volatility",las=1)
+
+plot(1:n_,gedgarchrtngvec$eps,pch=16,col="blue",lwd=2,xlab="t",ylab="epsilon(t)",main="GARCH Noise ",las=1)
+abline(h=0,col="gray",lty=3)
+
+
+# 2. Quasi-Maximum Likelihood Estimation of the parameters
+
+# Estimates the parameters of an univariate ARMA-GARCH/APARCH process.
+garches <- garchFit(formula = ~ garch(1,1),data = garchrt,cond.dist = "norm") 
+
+# a) Results analysis
+
+garches@fit$llh  ## -log likelihood for model  (our goal is to minimaize it)
+
+garches@fit$coef   ## QMLE estimators for this model
+
+# coefficients are quite similar to alpha = 0.25, beta = 0.48, omega = 1e-4
+
+garches@fit$se.coef  ## SE(\theta_QML) - standard errors
+
+garches@fit$tval  ## T statistics for significance analysis
+
+garches@fit$cvar ## covariance-variance matrix
+
+## b) Visualizations model volatility and returns 
+
+sigmat_ <- garches@sigma.t  # sigma(t) 
+
+plot(1:n_,as.numeric(sigmat_),type="l",xlab="t",ylab="sigma(t)",main="volatility")
+
+
+epst_ <- garches@residuals  # epsilon(t) 
+
+plot(1:n_,as.numeric(epst_),xlab="t",ylab="epsilon(t)",main="GARCH returns")
+
